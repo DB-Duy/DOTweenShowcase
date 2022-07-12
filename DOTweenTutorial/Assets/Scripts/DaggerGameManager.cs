@@ -19,6 +19,8 @@ public class DaggerGameManager : MonoBehaviour
   private Transform _logTransform;
   [SerializeField]
   private float _shotCooldown;
+  [SerializeField]
+  private GameObject _restartButton;
   private GameObject _currentDagger;
   private int _currentHeartIdx;
   private float _lastShotTime;
@@ -129,8 +131,15 @@ public class DaggerGameManager : MonoBehaviour
     {
       IsPlaying = false;
       _uiManager.LoseGame();
+      PlayRestartButtonTween();
     }
   }
+
+  private void PlayRestartButtonTween()
+  {
+    _restartButton.GetComponent<DOTweenAnimation>().DOPlayById("Entry");
+  }
+
 
   public void RestartGame()
   {
