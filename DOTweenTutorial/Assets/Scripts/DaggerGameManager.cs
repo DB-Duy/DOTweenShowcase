@@ -10,13 +10,17 @@ public class DaggerGameManager : MonoBehaviour
   [SerializeField]
   private EffectsManager _effectsManager;
   [SerializeField]
+  private TweeningManager _tweenManager;
+  [SerializeField]
+  private TMPro.TMP_Text _scoreText;
+  [SerializeField]
   private GameObject _daggerPrefab;
   [SerializeField]
   private GameObject[] _hearts;
   [SerializeField]
   private GameObject[] _daggerInHeart;
   [SerializeField]
-  private Transform _logTransform;
+  private GameObject _log;
   [SerializeField]
   private float _shotCooldown;
   [SerializeField]
@@ -25,6 +29,7 @@ public class DaggerGameManager : MonoBehaviour
   private int _currentHeartIdx;
   private float _lastShotTime;
   private UIManager _uiManager;
+  public int Score;
 
   private Vector3 _logRotation = new Vector3(0, 360, 0);
   public bool IsPlaying;
@@ -36,6 +41,7 @@ public class DaggerGameManager : MonoBehaviour
 
   private void Start()
   {
+    Score = 0;
     _uiManager = UIManager.instance;
     IsPlaying = true;
     DOTween.Init(true, false);
@@ -53,29 +59,11 @@ public class DaggerGameManager : MonoBehaviour
 
   private void SpinLog()
   {
-    // _logTransform.DORotate(_logRotation, 3f, RotateMode.FastBeyond360).SetEase(Ease.InOutSine).SetLoops(-1, LoopType.Yoyo);
-    // _logTransform.DOShakePosition(4f, fadeOut: false).SetLoops(-1, LoopType.Incremental);
-    // DOTween.Shake(() => _logTransform.position, (shakeVector) =>
-    // {
-    //   shakeVector.y = 0;
-    //   _logTransform.position = shakeVector;
-    // }, 4f, 1, 3, fadeOut: false, ignoreZAxis: false).SetLoops(-1, LoopType.Incremental);
-    _logTransform.DORotate(_logRotation, 5f, RotateMode.FastBeyond360).SetEase(Ease.InOutSine).SetLoops(-1, LoopType.Yoyo);
+    _tweenManager.TweenLog(_log);
   }
   private void BeatHeart()
   {
-    Sequence beatSequence = DOTween.Sequence();
-    Vector3 originalScale = _hearts[0].transform.localScale;
-    for (int i = 0; i < _hearts.Length; i++)
-    {
-      beatSequence.Append(_hearts[i].transform.DOScale(originalScale * 1.1f, 0.1f))
-      .Append(_hearts[i].transform.DOScale(originalScale, 0.1f))
-      .Append(_hearts[i].transform.DOScale(originalScale * 1.3f, 0.1f))
-      .AppendInterval(0.2f)
-      .Append(_hearts[i].transform.DOScale(originalScale, 0.1f))
-      .AppendInterval(0.5f);
-    }
-    beatSequence.SetLoops(-1);
+    _tweenManager.TweenHeartbeat(_hearts);
   }
 
   private void Update()
@@ -90,16 +78,17 @@ public class DaggerGameManager : MonoBehaviour
   private void LaunchDagger()
   {
     _effectsManager.PlayDaggerFlyAudio();
-    _currentDagger.transform.DOMoveZ(1f, 0.1f, false).SetEase(Ease.InSine).OnComplete(OnLaunchComplete);
+    _tweenManager.TweenDaggerThrow(_currentDagger)?.OnComplete(OnLaunchComplete);
   }
 
   private void OnLaunchComplete()
   {
     if (_currentDagger.GetComponent<DaggerCollision>().HitsLog)
     {
+      Score++;
       _currentDagger.GetComponent<TrailRenderer>().enabled = false;
       _effectsManager.PlayHitWoodAudio();
-      _currentDagger.transform.parent = _logTransform;
+      _currentDagger.transform.parent = _log.transform;
       GetNewDagger();
     }
     else
@@ -108,24 +97,16 @@ public class DaggerGameManager : MonoBehaviour
       _effectsManager.PlayEffectOnce(_currentDagger.transform.position + new Vector3(0, 1, -1));
       EjectKnife();
     }
+    _scoreText.text = Score.ToString();
   }
-
 
   private void EjectKnife()
   {
-    Vector3 randomPoint = new Vector3(0, 2, 0);
-    randomPoint.x = (UnityEngine.Random.value > 0.5f) ? 4f : -4f;
-    randomPoint.z = UnityEngine.Random.Range(-4f, 0.5f);
-
-    Sequence sequence = DOTween.Sequence();
-    sequence.Append(_currentDagger.transform.DORotate(_logRotation, 0.1f, RotateMode.FastBeyond360).SetLoops(3, LoopType.Incremental))
-    .Join(_currentDagger.transform.DOMove(randomPoint, 0.3f).SetEase(Ease.OutCubic))
-    .AppendCallback(LoseHeart).AppendCallback(GetNewDagger).SetId("EjectTween");
+      _tweenManager.TweenDaggerDeflect(_currentDagger)?.OnComplete(()=>{LoseHeart(); GetNewDagger();}).SetId("EjectTween");
   }
   private void LoseHeart()
   {
-    Material currentHeartMat = _hearts[_currentHeartIdx].GetComponent<Renderer>().material;
-    currentHeartMat.DOColor(Color.gray, 1f).OnComplete(() => currentHeartMat.DOFade(0, 1f));
+    _tweenManager.TweenHeartLost(_hearts[_currentHeartIdx]);
     _currentHeartIdx++;
     if (_currentHeartIdx >= _hearts.Length)
     {
@@ -137,7 +118,7 @@ public class DaggerGameManager : MonoBehaviour
 
   private void PlayRestartButtonTween()
   {
-    _restartButton.GetComponent<DOTweenAnimation>().DOPlayById("Entry");
+    _tweenManager.TweenRestartButton(_restartButton);
   }
 
 
